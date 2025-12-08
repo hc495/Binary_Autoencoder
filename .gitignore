@@ -4,10 +4,9 @@
 /wandb
 /not_used
 /old
+/SOP
 
 __pycache__
-
-!SOP/*.sh
 
 *.test.ipynb
 *.test.py
