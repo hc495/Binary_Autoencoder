@@ -177,6 +177,19 @@ python evaluate_interp.py
     --backend_model_name "gpt-4.1-mini"
 ```
 
+#### If you train BAE by other codes...
+
+You should write the configuration file manually, and dump it as a `.pkl` file to tell the code to build the BAE/SAE. Below is an example of how to create the configuration file:
+
+```python
+{
+    "inner_expand_rate": 4,
+    "binarization_type": "sign_s",
+    "output_activation": "none",
+    "cycle_for_squarewave": None,
+}
+```
+
 ## Citation
 
 If you find this work useful for your research, please cite [our paper](https://arxiv.org/abs/2509.20997):
