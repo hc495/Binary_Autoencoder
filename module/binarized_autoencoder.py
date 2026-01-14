@@ -11,6 +11,7 @@ class BinarizedAutoencoder(torch.nn.Module):
         binarization_type = 'sign',
         output_activation = 'relu',
         cycle_for_squarewave = 2,
+        bits = 1,
     ):
         super(BinarizedAutoencoder, self).__init__()
         self.input_dim = input_dim
@@ -21,8 +22,12 @@ class BinarizedAutoencoder(torch.nn.Module):
         self.cycle_for_squarewave = cycle_for_squarewave
 
         # Encoder
-        self.encoder = torch.nn.Linear(self.input_dim, self.hidden_dim)
-        
+        self.encoder = torch.nn.Linear(self.input_dim, self.hidden_dim * bits)
+
+        self.bits = bits
+        if bits > 1:
+            self.kb2f = binarization.kBitToFloat(bits)
+
         if binarization_type == 'sign':
             self.binarization = binarization.SignBinarization
         elif binarization_type == 'squarewave':
@@ -50,10 +55,15 @@ class BinarizedAutoencoder(torch.nn.Module):
         x_b = self.binarization.apply(x)
 
         # Decoder
-        y = self.decoder(x_b)
-        y = self.output_activation(y)
-
-        return y, x_b
+        if self.bits > 1:
+            x_b_f = self.kb2f(x_b)
+            y = self.decoder(x_b_f)
+            y = self.output_activation(y)
+            return y, x_b
+        else:
+            y = self.decoder(x_b)
+            y = self.output_activation(y)
+            return y, x_b
     
     def encode(self, x):
         y, x_b = self.forward(x)
@@ -61,6 +71,10 @@ class BinarizedAutoencoder(torch.nn.Module):
     
     def decode(self, x_b):
         # Decode the binarized representation
-        y = self.decoder(x_b)
+        if self.bits > 1:
+            x_b_f = self.kb2f(x_b)
+            y = self.decoder(x_b_f)
+        else:
+            y = self.decoder(x_b)
         y = self.output_activation(y)
         return y

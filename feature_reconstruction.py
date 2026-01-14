@@ -30,6 +30,7 @@ parser.add_argument("--entropy_start_epoch", type=int, default=500, help="Epoch 
 parser.add_argument("--save_dir", type=str, default="logs", help="Directory to save the results (logs, model, plots)")
 parser.add_argument("--dont_save_model", action='store_true', help="Don't save the model after training")
 parser.add_argument("--dont_save_log", action='store_true', help="Don't save the log after training")
+parser.add_argument("--bits", type=int, default=1, help="Number of bits of BAE bit2float activation")
 args = parser.parse_args()
 
 # Load the feature set
@@ -59,6 +60,7 @@ auto_encoder = binarized_autoencoder.BinarizedAutoencoder(
     binarization_type = args.binarization_type,
     output_activation = args.output_activation,
     cycle_for_squarewave = args.cycle_for_squarewave,
+    bits = args.bits
 )
 if args.cuda:
     auto_encoder = auto_encoder.cuda()
@@ -117,7 +119,8 @@ experiment_params = {
     "entropy_weight": args.entropy_weight,
     "covarience_weight": args.covarience_weight,
     "entropy_threshold": args.entropy_threshold,
-    "entropy_start_epoch": args.entropy_start_epoch
+    "entropy_start_epoch": args.entropy_start_epoch,
+    "bits": args.bits
 }
 
 report_path = os.path.join(args.save_dir, f"report_{current_time}")
