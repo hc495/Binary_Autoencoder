@@ -24,13 +24,26 @@ parser.add_argument("--top_k", type=int, default=10, help="Top k features to con
 parser.add_argument("--openai_token", type=str, default=None, help="OpenAI API key for using the backend model")
 parser.add_argument("--save_path", type=str, default="logs/interp_score_results/", help="Path to save the interpretation results")
 parser.add_argument("--no_interpret", action='store_true', help="If set, will not run the interpretation process")
+parser.add_argument("--interpreter_path", default=None, type=str, help="Path to the interpreter model for feature interpretation")
 parser.add_argument("--SAE_rescale", action='store_true', help="If set, will use the SAE baseline with rescaling")
 
 args = parser.parse_args()
 
+if args.interpreter_path is not None:
+    with open(args.interpreter_path, "rb") as f:
+        interpreter = pickle.load(f)
+    interpreter.run()
+    save_path = args.save_path
+    save_name = f"interp_score_{args.dataset_name}_{args.split}_{args.LM_name.split('/')[-1]}_layer_{args.layer}_topk_{args.top_k}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
+    os.makedirs(save_path, exist_ok=True)
+    with open(os.path.join(save_path, save_name), "wb") as f:
+        pickle.dump((interpreter.feature_interpretation, interpreter.original_feature_set), f)
+    exit(0)
+
+
 if args.openai_token is None:
     try:
-        args.openai_token = os.environ['OAI_TOKEN']
+        args.openai_token = os.environ['OPENAI_API_KEY']
     except KeyError:
         print("OpenAI token must be provided either through --openai_token or OAI_TOKEN environment variable. Use empty string in default.")
         args.openai_token = ""
@@ -42,7 +55,7 @@ wandb.init(
     save_code=True
 )
 
-dataset = load_dataset(args.dataset_name, split=args.split, streaming=True)
+dataset = load_dataset(args.dataset_name, split=args.split, streaming=True, revision="refs/convert/parquet")
 sentence = []
 for i, example in enumerate(dataset):
     if 'text' in example:
@@ -119,7 +132,6 @@ elif args.type == "TRC":
         layer_num=args.layer,
         rescale=args.SAE_rescale
     )
-feature_source.encode_sentences()
 interpreter = interp_score.interp_score(
     feature_num=parameters["inner_expand_rate"] * dimensions,
     backend_model_name=args.backend_model_name,
@@ -127,6 +139,9 @@ interpreter = interp_score.interp_score(
     interpretation_length=5,
     openai_api_key=args.openai_token,
 )
+
+feature_source.encode_sentences()
+
 
 for i in tqdm(range(len(feature_source))):
     feature = feature_source.get_encoded_features(i)
@@ -146,3 +161,7 @@ save_name = f"interp_score_{args.dataset_name}_{args.split}_{args.LM_name.split(
 os.makedirs(save_path, exist_ok=True)
 with open(os.path.join(save_path, save_name), "wb") as f:
     pickle.dump((interpreter.feature_interpretation, interpreter.original_feature_set), f)
+
+if args.no_interpret:
+    with open(os.path.join(save_path, "save_name" + "unfinished"), "wb") as f:
+        pickle.dump((interpreter), f)

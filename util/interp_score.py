@@ -4,6 +4,7 @@ from tqdm import tqdm
 from openai import OpenAI
 import wandb
 from scipy.stats import chi2
+import time
 from util.hooked_Llama_for_transcoder import make_hooked_llama3
 
 def find_tokenized_position_in_another_tokenizer(
@@ -49,6 +50,7 @@ class interp_score():
         self.top_k = top_k
         self.interpretation_length = interpretation_length
         self.max_test_samples = max_test_samples
+        self.openai_api_key = openai_api_key
 
         self.original_feature_set = {}
         self.feature_interpretation = {}
@@ -59,8 +61,6 @@ class interp_score():
                 "interpretable": False,
                 "test_score": None
             }
-
-        self.client = OpenAI(api_key = openai_api_key)
         
         self.instructions = '''
             Instruction: \n
@@ -293,14 +293,20 @@ class interp_score():
         prompt += "The commonality is:"
         # Here you would call the backend model to get the interpretation
         # Example using OpenAI API (assuming backend_model_name is an OpenAI model)
-
-        response = self.client.chat.completions.create(
-            model=self.backend_model_name,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant for interpreting token commonalities."},
-                {"role": "user", "content": prompt}
-            ],
-        )
+        
+        while True:
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.backend_model_name,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant for interpreting token commonalities."},
+                        {"role": "user", "content": prompt}
+                    ],
+                )
+                break
+            except Exception as e:
+                print(f"Error while creating interpretation response for feature {feature_index}: {e}. Retrying...")
+                time.sleep(1)
         token_cost = response.usage
         print(token_cost)
         interpretation = response.choices[0].message.content.strip()
@@ -330,13 +336,21 @@ class interp_score():
             prompt = self.instructions_test
             prompt += f"Token: {sample['token']} at position {sample['location']} in sentence: \"{sample['sentence']}\". \n"
             prompt += f"Candidate description: \"{interpretation}\"\nAnswer:"
-            response = self.client.chat.completions.create(
-                model=self.backend_model_name,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant for testing token interpretations."},
-                    {"role": "user", "content": prompt}
-                ],
-            )
+
+            while True:
+                try:
+                    response = self.client.chat.completions.create(
+                        model=self.backend_model_name,
+                        messages=[
+                            {"role": "system", "content": "You are a helpful assistant for testing token interpretations."},
+                            {"role": "user", "content": prompt}
+                        ],
+                    )
+                    break
+                except Exception as e:
+                    print(f"Error while creating test response for feature {feature_index}: {e}. Retrying...")
+                    time.sleep(1)
+                    
             answer = response.choices[0].message.content.strip()
             if answer.lower() == "yes":
                 correct_count += 1
@@ -347,6 +361,7 @@ class interp_score():
         return score
 
     def run(self):
+        self.client = OpenAI(api_key = self.openai_api_key)
         for feature_index in range(self.feature_num):
             interpretation, interpretable = self.interpret_single_feature(feature_index)
             self.feature_interpretation[feature_index]["semantic"] = interpretation

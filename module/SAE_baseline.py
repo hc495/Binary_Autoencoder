@@ -36,7 +36,13 @@ class SAE(torch.nn.Module):
         elif inner_activation == 'jumprelu':
             self.inner_activation = lambda x: torch.where(x > theta, x, torch.zeros_like(x))
         elif inner_activation == 'topk':
-            self.inner_activation = lambda x: x * (x >= torch.topk(x, topk, dim=1).values[:, -1].unsqueeze(1)).float()
+            self.inner_activation = lambda x: x * (x >= torch.topk(x, self.topk, dim=1).values[:, -1].unsqueeze(1)).float()
+        elif inner_activation == 'batch_topk':
+            def batch_topk_activation(x):
+                flat_x = x.reshape(-1)
+                threshold = torch.topk(flat_x, self.topk, dim=0).values[-1]
+                return torch.where(x >= threshold, x, torch.zeros_like(x))
+            self.inner_activation = batch_topk_activation
         else:
             raise ValueError(f"Unsupported inner activation: {inner_activation}")
 
